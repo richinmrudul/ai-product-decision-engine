@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from pydantic import BaseModel
 
 
@@ -12,9 +12,19 @@ class ProductAnalysisRequest(BaseModel):
     competitor_count: int
 
 
+class KeyDriver(BaseModel):
+    factor: str
+    impact: str
+    explanation: str
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
     risk_level: str
+    summary: str
     reasons: List[str]
     warnings: List[str]
+    score_breakdown: Dict[str, float]
+    key_drivers: List[KeyDriver]
+    computed_features: Dict[str, float]
