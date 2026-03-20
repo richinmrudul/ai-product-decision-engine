@@ -8,10 +8,20 @@ export type ProductAnalysisRequest = {
   competitor_count: number;
 };
 
+export type DriverImpact = "positive" | "negative";
+
 export type KeyDriver = {
-  factor: string;
-  impact: string;
+  factor: "profitability" | "demand" | "competition" | "reviews";
+  impact: DriverImpact;
   explanation: string;
+};
+
+export type ScoreBreakdown = {
+  profitability: number;
+  demand: number;
+  competition: number;
+  reviews: number;
+  overall: number;
 };
 
 export type ProductAnalysisResponse = {
@@ -21,7 +31,7 @@ export type ProductAnalysisResponse = {
   summary: string;
   reasons: string[];
   warnings: string[];
-  score_breakdown: Record<string, number>;
+  score_breakdown: ScoreBreakdown;
   key_drivers: KeyDriver[];
   computed_features: Record<string, number>;
 };
