@@ -8,10 +8,20 @@ export type ProductAnalysisRequest = {
   competitor_count: number;
 };
 
+export type KeyDriver = {
+  factor: string;
+  impact: string;
+  explanation: string;
+};
+
 export type ProductAnalysisResponse = {
   decision: string;
   confidence_score: number;
   risk_level: string;
+  summary: string;
   reasons: string[];
   warnings: string[];
+  score_breakdown: Record<string, number>;
+  key_drivers: KeyDriver[];
+  computed_features: Record<string, number>;
 };

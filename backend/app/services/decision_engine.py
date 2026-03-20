@@ -2,24 +2,31 @@ def clamp(value: float, min_value: float, max_value: float) -> float:
     return max(min_value, min(value, max_value))
 
 
-def compute_overall_score(features: dict) -> tuple[float, dict]:
-    score_breakdown = {
+WEIGHTS = {
+    "profitability": 0.35,
+    "demand": 0.25,
+    "competition": 0.20,
+    "reviews": 0.20,
+}
+
+
+def compute_weighted_breakdown(features: dict) -> dict:
+    return {
         "profitability": features["profitability_score"],
         "demand": features["demand_score"],
         "competition": features["competition_score"],
         "reviews": features["review_score"],
     }
 
-    overall_score = (
-        score_breakdown["profitability"] * 0.35
-        + score_breakdown["demand"] * 0.25
-        + score_breakdown["competition"] * 0.20
-        + score_breakdown["reviews"] * 0.20
-    )
 
-    return round(overall_score, 2), {
-        key: round(value, 2) for key, value in score_breakdown.items()
-    }
+def compute_overall_score(score_breakdown: dict) -> float:
+    overall_score = (
+        score_breakdown["profitability"] * WEIGHTS["profitability"]
+        + score_breakdown["demand"] * WEIGHTS["demand"]
+        + score_breakdown["competition"] * WEIGHTS["competition"]
+        + score_breakdown["reviews"] * WEIGHTS["reviews"]
+    )
+    return round(overall_score, 2)
 
 
 def decide(overall_score: float) -> str:
@@ -61,3 +68,21 @@ def compute_confidence(overall_score: float, features: dict) -> float:
     confidence = overall_score - consistency_penalty
 
     return round(clamp(confidence, 35, 95), 2)
+
+
+def build_decision_result(features: dict) -> dict:
+    score_breakdown = compute_weighted_breakdown(features)
+    overall_score = compute_overall_score(score_breakdown)
+    decision = decide(overall_score)
+    confidence_score = compute_confidence(overall_score, features)
+    risk_level = compute_risk_level(features)
+
+    score_breakdown["overall"] = overall_score
+
+    return {
+        "score_breakdown": score_breakdown,
+        "overall_score": overall_score,
+        "decision": decision,
+        "confidence_score": confidence_score,
+        "risk_level": risk_level,
+    }

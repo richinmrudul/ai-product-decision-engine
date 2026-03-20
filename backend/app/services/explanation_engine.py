@@ -31,78 +31,71 @@ def build_warnings(features: dict) -> list[str]:
     return warnings
 
 
-def build_summary(decision: str, risk_level: str, features: dict) -> str:
+def build_summary(decision: str, risk_level: str, overall_score: float) -> str:
     if decision == "BUY":
         return (
             f"This product appears attractive overall, with strong upside across key signals. "
-            f"Risk is currently assessed as {risk_level.lower()}."
+            f"Overall score is {overall_score}, and risk is {risk_level.lower()}."
         )
 
     if decision == "WATCH":
         return (
             f"This product shows some promising traits, but the opportunity is mixed. "
-            f"Risk is currently assessed as {risk_level.lower()}, so closer monitoring is recommended."
+            f"Overall score is {overall_score}, with {risk_level.lower()} risk, so closer monitoring is recommended."
         )
 
     return (
         f"This product currently looks unattractive based on the available signals. "
-        f"Risk is assessed as {risk_level.lower()}, and the opportunity may need major improvement."
+        f"Overall score is {overall_score}, risk is {risk_level.lower()}, and the opportunity may need major improvement."
+    )
+
+
+def _driver_explanation(factor: str, impact: str) -> str:
+    if factor == "profitability":
+        return (
+            "Projected margin remains above target thresholds."
+            if impact == "positive"
+            else "Projected margin is below preferred thresholds."
+        )
+    if factor == "demand":
+        return (
+            "Estimated monthly sales suggest healthy demand."
+            if impact == "positive"
+            else "Estimated monthly sales suggest weak demand."
+        )
+    if factor == "competition":
+        return (
+            "Competitive pressure appears manageable."
+            if impact == "positive"
+            else "Competitive pressure appears elevated."
+        )
+    return (
+        "Review quality and volume support product confidence."
+        if impact == "positive"
+        else "Review quality or volume is weak, increasing uncertainty."
     )
 
 
 def build_key_drivers(features: dict) -> list[dict]:
+    factors = [
+        ("profitability", features["profitability_score"]),
+        ("demand", features["demand_score"]),
+        ("competition", features["competition_score"]),
+        ("reviews", features["review_score"]),
+    ]
     drivers = []
+    for factor, score in factors:
+        if score >= 70:
+            impact = "positive"
+        elif score < 45:
+            impact = "negative"
+        else:
+            continue
 
-    if features["profitability_score"] >= 70:
         drivers.append({
-            "factor": "profitability",
-            "impact": "positive",
-            "explanation": "Projected margin remains above the preferred threshold."
-        })
-    elif features["profitability_score"] < 50:
-        drivers.append({
-            "factor": "profitability",
-            "impact": "negative",
-            "explanation": "Projected margin is weaker than the preferred range."
-        })
-
-    if features["demand_score"] >= 65:
-        drivers.append({
-            "factor": "demand",
-            "impact": "positive",
-            "explanation": "Estimated monthly sales indicate stronger demand."
-        })
-    elif features["demand_score"] < 50:
-        drivers.append({
-            "factor": "demand",
-            "impact": "negative",
-            "explanation": "Estimated monthly sales indicate weaker demand."
-        })
-
-    if features["competition_score"] >= 60:
-        drivers.append({
-            "factor": "competition",
-            "impact": "positive",
-            "explanation": "Competitive pressure appears manageable."
-        })
-    elif features["competition_score"] < 45:
-        drivers.append({
-            "factor": "competition",
-            "impact": "negative",
-            "explanation": "Competitive pressure appears elevated."
-        })
-
-    if features["review_score"] >= 70:
-        drivers.append({
-            "factor": "reviews",
-            "impact": "positive",
-            "explanation": "Review quality and volume increase confidence in the opportunity."
-        })
-    elif features["review_score"] < 55:
-        drivers.append({
-            "factor": "reviews",
-            "impact": "negative",
-            "explanation": "Weak review strength increases uncertainty."
+            "factor": factor,
+            "impact": impact,
+            "explanation": _driver_explanation(factor, impact),
         })
 
     return drivers
