@@ -9,3 +9,5 @@ router = APIRouter()
 @router.post("/analyze", response_model=ProductAnalysisResponse)
 def analyze(payload: ProductAnalysisRequest):
     return analyze_product(payload)
+    #todo
+    
