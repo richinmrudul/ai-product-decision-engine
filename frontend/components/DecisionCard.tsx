@@ -126,6 +126,59 @@ export default function DecisionCard({ result }: DecisionCardProps) {
         )}
       </div>
 
+      <div className="mb-6 rounded-xl border border-gray-200 bg-slate-50/80 p-5">
+        <h3 className="mb-1 text-lg font-semibold text-gray-900">
+          Sensitivity analysis
+        </h3>
+        <p className="mb-4 text-sm text-gray-600">
+          Stress tests vs your baseline (same pipeline, adjusted assumptions).
+        </p>
+        <div className="mb-4 flex flex-wrap gap-3">
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Decision stability
+            </p>
+            <p className="text-lg font-semibold text-gray-900">
+              {result.sensitivity.decision_stability}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Worst case
+            </p>
+            <p className="text-lg font-semibold text-gray-900">
+              {result.sensitivity.worst_case_decision}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Best case
+            </p>
+            <p className="text-lg font-semibold text-gray-900">
+              {result.sensitivity.best_case_decision}
+            </p>
+          </div>
+        </div>
+        <ul className="space-y-3">
+          {result.sensitivity.scenarios.map((s) => (
+            <li
+              key={s.scenario_id}
+              className="rounded-lg border border-gray-200 bg-white p-4"
+            >
+              <p className="font-medium text-gray-900">{s.description}</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Decision:{" "}
+                <span className="font-semibold text-gray-900">{s.decision}</span>
+                {" · "}
+                Score: {s.overall_score.toFixed(2)}
+                {" · "}
+                Risk: {s.risk_level}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div>
         <h3 className="mb-2 text-lg font-semibold text-gray-900">
           Computed Features

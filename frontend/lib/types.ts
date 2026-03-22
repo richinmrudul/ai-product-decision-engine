@@ -24,6 +24,21 @@ export type ScoreBreakdown = {
   overall: number;
 };
 
+export type ScenarioOutcome = {
+  scenario_id: string;
+  description: string;
+  decision: string;
+  overall_score: number;
+  risk_level: string;
+};
+
+export type SensitivityAnalysis = {
+  scenarios: ScenarioOutcome[];
+  decision_stability: string;
+  worst_case_decision: string;
+  best_case_decision: string;
+};
+
 export type ProductAnalysisResponse = {
   decision: string;
   confidence_score: number;
@@ -34,4 +49,5 @@ export type ProductAnalysisResponse = {
   score_breakdown: ScoreBreakdown;
   key_drivers: KeyDriver[];
   computed_features: Record<string, number>;
+  sensitivity: SensitivityAnalysis;
 };

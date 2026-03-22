@@ -18,6 +18,21 @@ class KeyDriver(BaseModel):
     explanation: str
 
 
+class ScenarioOutcome(BaseModel):
+    scenario_id: str
+    description: str
+    decision: str
+    overall_score: float
+    risk_level: str
+
+
+class SensitivityAnalysis(BaseModel):
+    scenarios: List[ScenarioOutcome]
+    decision_stability: str
+    worst_case_decision: str
+    best_case_decision: str
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
@@ -28,3 +43,4 @@ class ProductAnalysisResponse(BaseModel):
     score_breakdown: Dict[str, float]
     key_drivers: List[KeyDriver]
     computed_features: Dict[str, float]
+    sensitivity: SensitivityAnalysis
