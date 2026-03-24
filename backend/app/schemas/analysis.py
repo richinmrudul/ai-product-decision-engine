@@ -21,9 +21,20 @@ class KeyDriver(BaseModel):
 class ScenarioOutcome(BaseModel):
     scenario_id: str
     description: str
+    direction: str
     decision: str
     overall_score: float
+    score_delta: float
+    decision_changed: bool
     risk_level: str
+
+
+class RobustnessSummary(BaseModel):
+    robustness_level: str
+    most_sensitive_factor: str
+    largest_downside_delta: float
+    largest_upside_delta: float
+    baseline_decision_retained_in_downside: bool
 
 
 class SensitivityAnalysis(BaseModel):
@@ -31,6 +42,7 @@ class SensitivityAnalysis(BaseModel):
     decision_stability: str
     worst_case_decision: str
     best_case_decision: str
+    robustness_summary: RobustnessSummary
 
 
 class ProductAnalysisResponse(BaseModel):
