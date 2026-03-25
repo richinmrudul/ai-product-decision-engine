@@ -167,3 +167,76 @@ def append_plausibility_to_calibration(calibration: dict, plausibility: dict) ->
             calibration["calibrated_summary"]
             + " Some inputs look stretched; reduce trust in the headline score until assumptions are validated."
         )
+
+
+# Below HIGH outlier risk + score, treat recommendation as INVALID (not actionable).
+INVALID_PLAUSIBILITY_SCORE_THRESHOLD = 35.0
+
+GATED_SEARCH_SOLVER_MESSAGE = (
+    "Search and solver guidance are not meaningful until inputs are normalized."
+)
+
+
+def compute_recommendation_gate(plausibility: dict) -> dict:
+    """
+    Deterministic mapping from plausibility to user-facing validity and actionability.
+    """
+    score = float(plausibility["input_plausibility_score"])
+    risk = plausibility["outlier_risk_level"]
+    if risk == "HIGH" and score < INVALID_PLAUSIBILITY_SCORE_THRESHOLD:
+        return {"recommendation_validity": "INVALID", "actionability": "DO_NOT_USE"}
+    if risk == "HIGH":
+        return {"recommendation_validity": "LOW", "actionability": "CAUTION"}
+    if risk == "MEDIUM":
+        return {"recommendation_validity": "MEDIUM", "actionability": "CAUTION"}
+    return {"recommendation_validity": "HIGH", "actionability": "ACTIONABLE"}
+
+
+def prepend_invalidity_to_summary(summary: str, gate: dict) -> str:
+    if gate.get("recommendation_validity") != "INVALID":
+        return summary
+    return (
+        "Input validity: FAILED — do not rely on the headline decision or scores below "
+        "until price, cost, and volume are realistic. "
+        "Business evaluation (diagnostic only): "
+        + summary
+    )
+
+
+def append_validity_to_calibrated_summary(calibration: dict, gate: dict) -> None:
+    """Mutates calibration: prefixes calibrated_summary when inputs are not actionable."""
+    if gate.get("recommendation_validity") != "INVALID":
+        return
+    calibration["calibrated_summary"] = (
+        "Input validity: FAILED (not actionable). "
+        "Scoring and calibration below reflect hypothetical inputs only. "
+        + calibration["calibrated_summary"]
+    )
+
+
+def apply_search_solver_gating(
+    search_analysis: dict, solver_analysis: dict, gate: dict
+) -> tuple[dict, dict]:
+    if gate.get("recommendation_validity") != "INVALID":
+        return search_analysis, solver_analysis
+    s = dict(search_analysis)
+    v = dict(solver_analysis)
+    s["best_path_summary"] = GATED_SEARCH_SOLVER_MESSAGE
+    s["single_factor_paths"] = []
+    s["multi_factor_paths"] = []
+    sem_s = (s.get("semantics") or "").strip()
+    s["semantics"] = (
+        f"{sem_s} {GATED_SEARCH_SOLVER_MESSAGE}".strip()
+        if sem_s
+        else GATED_SEARCH_SOLVER_MESSAGE
+    )
+    v["minimum_change_summary"] = GATED_SEARCH_SOLVER_MESSAGE
+    v["best_single_factor_solution"] = None
+    v["best_two_factor_solution"] = None
+    sem_v = (v.get("semantics") or "").strip()
+    v["semantics"] = (
+        f"{sem_v} {GATED_SEARCH_SOLVER_MESSAGE}".strip()
+        if sem_v
+        else GATED_SEARCH_SOLVER_MESSAGE
+    )
+    return s, v

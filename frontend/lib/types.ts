@@ -37,12 +37,17 @@ export type SensitivityAnalysis = {
   decision_stability: string;
   worst_case_decision: string;
   best_case_decision: string;
-};
+}
+
+export type RecommendationValidity = "HIGH" | "MEDIUM" | "LOW" | "INVALID";
+export type Actionability = "ACTIONABLE" | "CAUTION" | "DO_NOT_USE";
 
 export type ProductAnalysisResponse = {
   decision: string;
   confidence_score: number;
   risk_level: string;
+  recommendation_validity: RecommendationValidity;
+  actionability: Actionability;
   summary: string;
   reasons: string[];
   warnings: string[];

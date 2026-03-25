@@ -1,5 +1,8 @@
-from typing import List, Dict
+from typing import List, Dict, Literal
 from pydantic import BaseModel
+
+RecommendationValidity = Literal["HIGH", "MEDIUM", "LOW", "INVALID"]
+Actionability = Literal["ACTIONABLE", "CAUTION", "DO_NOT_USE"]
 
 
 class ProductAnalysisRequest(BaseModel):
@@ -157,6 +160,8 @@ class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
     risk_level: str
+    recommendation_validity: RecommendationValidity
+    actionability: Actionability
     summary: str
     reasons: List[str]
     warnings: List[str]

@@ -28,7 +28,7 @@ export default function DecisionCard({ result }: DecisionCardProps) {
         <p className="mt-2 text-gray-600">{result.summary}</p>
       </header>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Decision
@@ -51,6 +51,34 @@ export default function DecisionCard({ result }: DecisionCardProps) {
           </p>
           <p className="mt-1 text-2xl font-semibold text-gray-900">
             {result.risk_level}
+          </p>
+        </div>
+        <div
+          className={`rounded-xl border p-4 ${
+            result.recommendation_validity === "INVALID"
+              ? "border-amber-300 bg-amber-50"
+              : "border-gray-200 bg-gray-50"
+          }`}
+        >
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Recommendation validity
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">
+            {result.recommendation_validity}
+          </p>
+        </div>
+        <div
+          className={`rounded-xl border p-4 ${
+            result.actionability === "DO_NOT_USE"
+              ? "border-rose-200 bg-rose-50"
+              : "border-gray-200 bg-gray-50"
+          }`}
+        >
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Actionability
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-gray-900">
+            {result.actionability}
           </p>
         </div>
       </div>
