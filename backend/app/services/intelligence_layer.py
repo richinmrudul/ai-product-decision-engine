@@ -1,5 +1,7 @@
 """Deterministic meta-analysis layer built on top of scoring and sensitivity."""
 
+DECISION_RANK = {"AVOID": 0, "WATCH": 1, "BUY": 2}
+
 
 def _factor_from_scenario_id(scenario_id: str) -> str:
     if scenario_id.startswith("cost_"):
@@ -8,6 +10,8 @@ def _factor_from_scenario_id(scenario_id: str) -> str:
         return "demand"
     if scenario_id.startswith("competition_"):
         return "competition"
+    if scenario_id.startswith("review_") or scenario_id.startswith("average_rating_"):
+        return "reviews"
     return "reviews"
 
 
@@ -90,11 +94,20 @@ def _factor_label(factor: str) -> str:
     return labels.get(factor, factor)
 
 
+def _strongest_upside_and_downside(scenarios: list[dict]) -> tuple[dict | None, dict | None]:
+    upside = [scenario for scenario in scenarios if scenario["scenario_type"] == "upside"]
+    downside = [scenario for scenario in scenarios if scenario["scenario_type"] == "downside"]
+    strongest_upside = max(upside, key=lambda item: item["score_delta"]) if upside else None
+    strongest_downside = min(downside, key=lambda item: item["score_delta"]) if downside else None
+    return strongest_upside, strongest_downside
+
+
 def _build_path_to_upgrade(
     decision: str,
     decision_gap: dict,
     features: dict,
     factor_sensitivity: list[dict],
+    sensitivity: dict,
 ) -> str:
     if decision == "BUY":
         return "The opportunity is already in BUY territory; focus on protecting current strengths."
@@ -116,6 +129,20 @@ def _build_path_to_upgrade(
     primary = _factor_label(leverage[0][0])
     secondary = _factor_label(leverage[1][0])
     gap = decision_gap["gap_to_next_tier"]
+    strongest_upside, _ = _strongest_upside_and_downside(sensitivity["scenarios"])
+    if strongest_upside:
+        upside_factor = _factor_label(_factor_from_scenario_id(strongest_upside["scenario_id"]))
+        upside_upgrade = DECISION_RANK.get(strongest_upside["decision"], 0) > DECISION_RANK.get(decision, 0)
+        if upside_upgrade:
+            return (
+                f"{upside_factor.capitalize()} is the strongest tested upgrade lever. "
+                f"A single tested improvement ('{strongest_upside['description'].lower()}') moves the decision from {decision} to {strongest_upside['decision']}."
+            )
+        return (
+            f"{upside_factor.capitalize()} is the strongest tested upgrade lever, but even the best single tested improvement "
+            f"('{strongest_upside['description'].lower()}') is not enough to reach {decision_gap['next_decision_tier']}. "
+            f"A combined lift across {primary} and {secondary} is likely required."
+        )
 
     if decision == "WATCH":
         return (
@@ -146,9 +173,13 @@ def _build_recommendations(
         ],
         key=lambda item: item[1],
     )[0]
-    recs.append(
-        f"Weakest structural signal is {_factor_label(weakest_factor)}; improve this first to raise baseline quality."
-    )
+    weakest_actions = {
+        "profitability": "Improve margin cushion by reducing unit cost or tightening pricing discipline.",
+        "demand": "Validate stronger demand with targeted acquisition tests before scaling spend.",
+        "competition": "Reduce competitive exposure by sharpening differentiation in crowded segments.",
+        "reviews": "Strengthen review credibility by improving rating quality and review volume.",
+    }
+    recs.append(weakest_actions[weakest_factor])
 
     tested_factors = [
         item for item in factor_sensitivity if item["sensitivity_level"] != "UNTESTED"
@@ -159,22 +190,27 @@ def _build_recommendations(
         else None
     )
     if most_sensitive_factor and most_sensitive_factor != weakest_factor:
-        recs.append(
-            f"Highest tested swing comes from {_factor_label(most_sensitive_factor)}; prioritize controls to reduce volatility on this lever."
-        )
+        sensitive_actions = {
+            "profitability": "Protect profitability volatility with tighter cost controls and supplier negotiation guardrails.",
+            "demand": "Stabilize demand risk with repeated demand validation before committing inventory.",
+            "competition": "Mitigate competitive fragility by focusing on defensible positioning and niche channels.",
+            "reviews": "Reduce review-driven swing risk by lifting post-purchase experience and response quality.",
+        }
+        recs.append(sensitive_actions[most_sensitive_factor])
 
     if decision_result["decision"] != "BUY":
-        changing_scenarios = [
-            scenario for scenario in sensitivity["scenarios"] if scenario["decision_changed"]
-        ]
+        changing_scenarios = [s for s in sensitivity["scenarios"] if s["decision_changed"]]
+        strongest_upside, _ = _strongest_upside_and_downside(sensitivity["scenarios"])
         gap = decision_gap["gap_to_next_tier"]
         feasibility = decision_gap["feasibility"].lower()
-        if changing_scenarios:
-            strongest_change = max(
-                changing_scenarios, key=lambda item: abs(item["score_delta"])
-            )
+        if strongest_upside and DECISION_RANK.get(strongest_upside["decision"], 0) > DECISION_RANK.get(decision_result["decision"], 0):
             recs.append(
-                f"Upgrade gap is {gap:.2f} points ({feasibility}); the scenario '{strongest_change['description'].lower()}' already flips the decision, making it the most practical action anchor."
+                f"Most realistic upgrade path is '{strongest_upside['description'].lower()}': it already lifts the decision to {strongest_upside['decision']}."
+            )
+        elif changing_scenarios:
+            strongest_change = max(changing_scenarios, key=lambda item: abs(item["score_delta"]))
+            recs.append(
+                f"Upgrade gap is {gap:.2f} points ({feasibility}); '{strongest_change['description'].lower()}' is the closest tested lever, but additional improvement is still needed."
             )
         else:
             recs.append(
@@ -204,19 +240,38 @@ def _build_counterfactuals(
         if tested_factors
         else None
     )
+    strongest_upside, strongest_downside = _strongest_upside_and_downside(sensitivity["scenarios"])
+
     if strongest_factor:
         statements.append(
             f"{_factor_label(strongest_factor).capitalize()} is the strongest upgrade lever based on tested scenario impact."
         )
 
+    if strongest_upside:
+        statements.append(
+            f"Strongest tested upside scenario is '{strongest_upside['description'].lower()}' ({strongest_upside['score_delta']:+.2f} points)."
+        )
+    if strongest_downside:
+        statements.append(
+            f"Strongest tested downside scenario is '{strongest_downside['description'].lower()}' ({strongest_downside['score_delta']:+.2f} points)."
+        )
+
     if decision_result["decision"] == "BUY":
+        if strongest_downside and strongest_upside:
+            if abs(strongest_downside["score_delta"]) > strongest_upside["score_delta"]:
+                statements.append("Downside fragility is stronger than upside potential under tested assumptions.")
         statements.append("The current decision is already BUY, so no upgrade counterfactual is required.")
         return statements[:3]
 
     upside_scenarios = [
         scenario for scenario in sensitivity["scenarios"] if scenario["scenario_type"] == "upside"
     ]
-    upgrading_upside = [scenario for scenario in upside_scenarios if scenario["decision_changed"]]
+    current_rank = DECISION_RANK.get(decision_result["decision"], 0)
+    upgrading_upside = [
+        scenario
+        for scenario in upside_scenarios
+        if DECISION_RANK.get(scenario["decision"], 0) > current_rank
+    ]
 
     if upgrading_upside:
         best_upgrade = max(upgrading_upside, key=lambda item: item["score_delta"])
@@ -230,6 +285,12 @@ def _build_counterfactuals(
         statements.append(
             "A stronger improvement in the most sensitive tested factor, or a combined uplift across multiple factors, would likely be required."
         )
+
+    if strongest_downside and strongest_upside:
+        if abs(strongest_downside["score_delta"]) > strongest_upside["score_delta"]:
+            statements.append("Downside fragility is stronger than upside potential in the tested range.")
+        else:
+            statements.append("Upside potential is at least as strong as downside fragility in the tested range.")
 
     return statements[:3]
 
@@ -280,6 +341,7 @@ def build_intelligence_layer(features: dict, decision_result: dict, sensitivity:
         decision_gap=decision_gap,
         features=features,
         factor_sensitivity=factor_sensitivity,
+        sensitivity=sensitivity,
     )
     recommendations = _build_recommendations(
         features=features,

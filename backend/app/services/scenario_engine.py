@@ -17,6 +17,8 @@ def _scenario_variants(
     demand_increased = max(0, int(round(base.estimated_monthly_sales * 1.15)))
     competitors_increased = base.competitor_count + 5
     competitors_decreased = max(0, base.competitor_count - 3)
+    review_count_increased = max(0, int(round(base.review_count * 1.5)))
+    rating_increased = min(5.0, round(base.average_rating + 0.3, 1))
 
     return [
         (
@@ -54,6 +56,18 @@ def _scenario_variants(
             "Competitor count -3",
             "upside",
             base.model_copy(update={"competitor_count": competitors_decreased}),
+        ),
+        (
+            "review_count_increase_50pct",
+            "Review count +50%",
+            "upside",
+            base.model_copy(update={"review_count": review_count_increased}),
+        ),
+        (
+            "average_rating_increase_0_3",
+            "Average rating +0.3",
+            "upside",
+            base.model_copy(update={"average_rating": rating_increased}),
         ),
     ]
 
@@ -118,7 +132,7 @@ def _build_robustness_summary(
 
 def run_sensitivity_analysis(base_payload: ProductAnalysisRequest) -> dict:
     """
-    Baseline decision plus six deterministic stress scenarios (3 downside, 3 upside).
+    Baseline decision plus deterministic stress scenarios (downside and upside).
     Reuses feature + decision pipeline; returns dict compatible with SensitivityAnalysis schema.
     """
     base_result = build_decision_result(compute_features(base_payload))
