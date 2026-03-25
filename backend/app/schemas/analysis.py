@@ -43,8 +43,7 @@ class SensitivityAnalysis(BaseModel):
 
 class FactorSensitivity(BaseModel):
     factor: str
-    score: float
-    weighted_contribution: float
+    avg_abs_score_delta: float
     sensitivity_level: str
 
 
@@ -57,6 +56,7 @@ class DecisionGap(BaseModel):
 class ProductIntelligence(BaseModel):
     factor_sensitivity: List[FactorSensitivity]
     decision_gap: DecisionGap
+    path_to_upgrade: str
     recommendations: List[str]
     uncertainty_flags: List[str]
 
