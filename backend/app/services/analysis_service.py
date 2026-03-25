@@ -7,6 +7,7 @@ from app.services.explanation_engine import (
     build_key_drivers,
 )
 from app.services.feature_engineering import compute_features
+from app.services.intelligence_layer import build_intelligence_layer
 from app.services.scenario_engine import run_sensitivity_analysis
 
 
@@ -23,6 +24,7 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
     )
     key_drivers = build_key_drivers(features)
     sensitivity = run_sensitivity_analysis(payload)
+    intelligence = build_intelligence_layer(features, decision_result, sensitivity)
 
     return ProductAnalysisResponse(
         decision=decision_result["decision"],
@@ -35,4 +37,5 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
         key_drivers=key_drivers,
         computed_features=features,
         sensitivity=sensitivity,
+        intelligence=intelligence,
     )

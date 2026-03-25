@@ -41,6 +41,26 @@ class SensitivityAnalysis(BaseModel):
     robustness_summary: str
 
 
+class FactorSensitivity(BaseModel):
+    factor: str
+    score: float
+    weighted_contribution: float
+    sensitivity_level: str
+
+
+class DecisionGap(BaseModel):
+    current_score: float
+    next_decision_tier: str
+    gap_to_next_tier: float
+
+
+class ProductIntelligence(BaseModel):
+    factor_sensitivity: List[FactorSensitivity]
+    decision_gap: DecisionGap
+    recommendations: List[str]
+    uncertainty_flags: List[str]
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
@@ -52,3 +72,4 @@ class ProductAnalysisResponse(BaseModel):
     key_drivers: List[KeyDriver]
     computed_features: Dict[str, float]
     sensitivity: SensitivityAnalysis
+    intelligence: ProductIntelligence
