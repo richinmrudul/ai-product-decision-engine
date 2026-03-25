@@ -10,7 +10,7 @@ DECISION_RANK = {"AVOID": 0, "WATCH": 1, "BUY": 2}
 def _scenario_variants(
     base: ProductAnalysisRequest,
 ) -> list[tuple[str, str, str, ProductAnalysisRequest]]:
-    """Return (id, description, direction, modified_payload) for each scenario."""
+    """Return (id, description, impact_direction, modified_payload) for each scenario."""
     cost_increased = round(base.estimated_cost * 1.15, 2)
     cost_decreased = round(base.estimated_cost * 0.90, 2)
     demand_decreased = max(0, int(round(base.estimated_monthly_sales * 0.8)))
@@ -58,12 +58,12 @@ def _scenario_variants(
     ]
 
 
-def _stability_from_decision_changes(changed_count: int) -> str:
-    if changed_count == 0:
-        return "HIGH"
-    if changed_count <= 2:
-        return "MEDIUM"
-    return "LOW"
+def _decision_stability(unique_decisions: int) -> str:
+    if unique_decisions <= 1:
+        return "ROBUST"
+    if unique_decisions == 2:
+        return "MIXED"
+    return "FRAGILE"
 
 
 def _worst_case(decisions: list[str]) -> str:
@@ -74,18 +74,10 @@ def _best_case(decisions: list[str]) -> str:
     return max(decisions, key=lambda d: DECISION_RANK.get(d, 0))
 
 
-def _robustness_level(changed_count: int) -> str:
-    if changed_count == 0:
-        return "HIGH"
-    if changed_count <= 2:
-        return "MEDIUM"
-    return "LOW"
-
-
 def run_sensitivity_analysis(base_payload: ProductAnalysisRequest) -> dict:
     """
-    Baseline decision plus three stress scenarios.
-    Returns dict compatible with SensitivityAnalysis schema.
+    Baseline decision plus six deterministic stress scenarios (3 downside, 3 upside).
+    Reuses feature + decision pipeline; returns dict compatible with SensitivityAnalysis schema.
     """
     base_result = build_decision_result(compute_features(base_payload))
     base_decision = base_result["decision"]
@@ -93,57 +85,61 @@ def run_sensitivity_analysis(base_payload: ProductAnalysisRequest) -> dict:
     all_decisions = [base_result["decision"]]
 
     scenarios_out: list[dict] = []
-    decision_changes = 0
-    most_sensitive_factor = ""
+    most_sensitive_scenario = ""
     max_abs_delta = -1.0
-    largest_downside_delta = 0.0
-    largest_upside_delta = 0.0
-    downside_retained = True
+    largest_score_drop = 0.0
+    largest_score_gain = 0.0
 
-    for scenario_id, description, direction, modified in _scenario_variants(base_payload):
+    for scenario_id, description, impact_direction, modified in _scenario_variants(base_payload):
         result = build_decision_result(compute_features(modified))
         scenario_score = result["overall_score"]
         score_delta = round(scenario_score - base_score, 2)
         decision_changed = result["decision"] != base_decision
 
         all_decisions.append(result["decision"])
-        if decision_changed:
-            decision_changes += 1
+        largest_score_drop = min(largest_score_drop, score_delta)
+        largest_score_gain = max(largest_score_gain, score_delta)
 
         abs_delta = abs(score_delta)
         if abs_delta > max_abs_delta:
             max_abs_delta = abs_delta
-            most_sensitive_factor = scenario_id
-
-        if direction == "downside":
-            largest_downside_delta = min(largest_downside_delta, score_delta)
-            downside_retained = downside_retained and not decision_changed
-        else:
-            largest_upside_delta = max(largest_upside_delta, score_delta)
+            most_sensitive_scenario = scenario_id
 
         scenarios_out.append(
             {
                 "scenario_id": scenario_id,
                 "description": description,
-                "direction": direction,
                 "decision": result["decision"],
                 "overall_score": scenario_score,
                 "score_delta": score_delta,
                 "decision_changed": decision_changed,
                 "risk_level": result["risk_level"],
+                "impact_direction": impact_direction,
             }
+        )
+
+    unique_decisions = len(set(all_decisions))
+    stability = _decision_stability(unique_decisions)
+    if stability == "ROBUST":
+        robustness_sentence = (
+            f"Recommendation is ROBUST: baseline decision '{base_decision}' holds across all tested scenarios."
+        )
+    elif stability == "MIXED":
+        robustness_sentence = (
+            f"Recommendation is MIXED: baseline decision '{base_decision}' changes under some scenarios."
+        )
+    else:
+        robustness_sentence = (
+            f"Recommendation is FRAGILE: tested scenarios span three or more distinct decisions from baseline '{base_decision}'."
         )
 
     return {
         "scenarios": scenarios_out,
-        "decision_stability": _stability_from_decision_changes(decision_changes),
+        "decision_stability": stability,
         "worst_case_decision": _worst_case(all_decisions),
         "best_case_decision": _best_case(all_decisions),
-        "robustness_summary": {
-            "robustness_level": _robustness_level(decision_changes),
-            "most_sensitive_factor": most_sensitive_factor,
-            "largest_downside_delta": round(largest_downside_delta, 2),
-            "largest_upside_delta": round(largest_upside_delta, 2),
-            "baseline_decision_retained_in_downside": downside_retained,
-        },
+        "most_sensitive_scenario": most_sensitive_scenario,
+        "largest_score_drop": round(largest_score_drop, 2),
+        "largest_score_gain": round(largest_score_gain, 2),
+        "robustness_summary": robustness_sentence,
     }
