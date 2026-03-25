@@ -50,13 +50,15 @@ class FactorSensitivity(BaseModel):
 class DecisionGap(BaseModel):
     current_score: float
     next_decision_tier: str
-    gap_to_next_tier: float
+    gap_to_next_tier: float | None
+    feasibility: str | None
 
 
 class ProductIntelligence(BaseModel):
     factor_sensitivity: List[FactorSensitivity]
     decision_gap: DecisionGap
     path_to_upgrade: str
+    counterfactuals: List[str]
     recommendations: List[str]
     uncertainty_flags: List[str]
 
