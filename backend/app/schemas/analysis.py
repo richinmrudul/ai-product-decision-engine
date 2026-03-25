@@ -129,6 +129,7 @@ class SolverPath(BaseModel):
     estimated_weighted_gain: float
     effective_cost: float
     adjusted_penalty_sum: float
+    difficulty_weighted_penalty_sum: float
     realism_stretched: bool
     strategic_score: float
     solution_summary: str
