@@ -30,10 +30,11 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
     calibration = build_calibration_layer(
         features_for_calibration, decision_result, sensitivity, intelligence
     )
+    calibrated_confidence = calibration["confidence_breakdown"]["final_confidence"]
 
     return ProductAnalysisResponse(
         decision=decision_result["decision"],
-        confidence_score=decision_result["confidence_score"],
+        confidence_score=calibrated_confidence,
         risk_level=decision_result["risk_level"],
         summary=summary,
         reasons=reasons,

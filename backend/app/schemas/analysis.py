@@ -67,7 +67,22 @@ class ConfidenceBreakdown(BaseModel):
     signal_consistency: float
     data_support: float
     scenario_robustness: float
+    component_weights: Dict[str, float]
+    weighted_contributions: Dict[str, float]
+    aggregated_component_score: float
+    weakest_confidence_component: str
+    pipeline_confidence: float
     final_confidence: float
+    confidence_explanation: str
+
+
+class ThresholdAnalysis(BaseModel):
+    next_tier: str
+    gap_overall_points: float | None
+    strongest_single_factor_lever: str
+    estimated_factor_score_points_needed: float | None
+    single_factor_upgrade_feasible: bool
+    threshold_summary: str
 
 
 class RiskProfile(BaseModel):
@@ -78,6 +93,7 @@ class RiskProfile(BaseModel):
 
 class ProductCalibration(BaseModel):
     confidence_breakdown: ConfidenceBreakdown
+    threshold_analysis: ThresholdAnalysis
     risk_profile: RiskProfile
     calibrated_summary: str
     decision_posture: str
