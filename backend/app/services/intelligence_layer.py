@@ -95,8 +95,8 @@ def _factor_label(factor: str) -> str:
 
 
 def _strongest_upside_and_downside(scenarios: list[dict]) -> tuple[dict | None, dict | None]:
-    upside = [scenario for scenario in scenarios if scenario["scenario_type"] == "upside"]
-    downside = [scenario for scenario in scenarios if scenario["scenario_type"] == "downside"]
+    upside = [scenario for scenario in scenarios if scenario["score_delta"] > 0]
+    downside = [scenario for scenario in scenarios if scenario["score_delta"] < 0]
     strongest_upside = max(upside, key=lambda item: item["score_delta"]) if upside else None
     strongest_downside = min(downside, key=lambda item: item["score_delta"]) if downside else None
     return strongest_upside, strongest_downside
@@ -144,15 +144,7 @@ def _build_path_to_upgrade(
             f"A combined lift across {primary} and {secondary} is likely required."
         )
 
-    if decision == "WATCH":
-        return (
-            f"To move from WATCH to BUY, close about {gap:.2f} points "
-            f"by prioritizing {primary}, with {secondary} as the next highest-leverage lever."
-        )
-    return (
-        f"To move from AVOID to WATCH, close about {gap:.2f} points "
-        f"by first improving {primary}, then {secondary}."
-    )
+    return "No tested upside scenario meaningfully improves the decision."
 
 
 def _build_recommendations(
@@ -199,7 +191,6 @@ def _build_recommendations(
         recs.append(sensitive_actions[most_sensitive_factor])
 
     if decision_result["decision"] != "BUY":
-        changing_scenarios = [s for s in sensitivity["scenarios"] if s["decision_changed"]]
         strongest_upside, _ = _strongest_upside_and_downside(sensitivity["scenarios"])
         gap = decision_gap["gap_to_next_tier"]
         feasibility = decision_gap["feasibility"].lower()
@@ -207,14 +198,13 @@ def _build_recommendations(
             recs.append(
                 f"Most realistic upgrade path is '{strongest_upside['description'].lower()}': it already lifts the decision to {strongest_upside['decision']}."
             )
-        elif changing_scenarios:
-            strongest_change = max(changing_scenarios, key=lambda item: abs(item["score_delta"]))
+        elif strongest_upside:
             recs.append(
-                f"Upgrade gap is {gap:.2f} points ({feasibility}); '{strongest_change['description'].lower()}' is the closest tested lever, but additional improvement is still needed."
+                f"Upgrade gap is {gap:.2f} points ({feasibility}); '{strongest_upside['description'].lower()}' is the best tested upside lever, but additional improvement is still needed."
             )
         else:
             recs.append(
-                f"Upgrade gap is {gap:.2f} points ({feasibility}); no single tested move reaches the next tier, so combine improvements across two factors."
+                "No tested upside scenario meaningfully improves the decision."
             )
 
     deduped: list[str] = []
@@ -264,7 +254,7 @@ def _build_counterfactuals(
         return statements[:3]
 
     upside_scenarios = [
-        scenario for scenario in sensitivity["scenarios"] if scenario["scenario_type"] == "upside"
+        scenario for scenario in sensitivity["scenarios"] if scenario["score_delta"] > 0
     ]
     current_rank = DECISION_RANK.get(decision_result["decision"], 0)
     upgrading_upside = [
@@ -279,9 +269,12 @@ def _build_counterfactuals(
             f"A single tested upside scenario can upgrade the decision: '{best_upgrade['description'].lower()}' shifts to {best_upgrade['decision']}."
         )
     else:
-        statements.append(
-            f"No single tested scenario is sufficient to upgrade this opportunity to {decision_gap['next_decision_tier']}."
-        )
+        if upside_scenarios:
+            statements.append(
+                f"No single tested upside scenario is sufficient to upgrade this opportunity to {decision_gap['next_decision_tier']}."
+            )
+        else:
+            statements.append("No tested upside scenario meaningfully improves the decision.")
         statements.append(
             "A stronger improvement in the most sensitive tested factor, or a combined uplift across multiple factors, would likely be required."
         )
