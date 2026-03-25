@@ -16,6 +16,12 @@ FACTOR_LABELS = {
     "reviews": "reviews",
 }
 
+SEARCH_SEMANTICS = (
+    "Search analysis is raw linear feasibility: it checks whether factor sub-score headroom can mathematically "
+    "cover the overall score gap using weights only. It ignores diminishing returns, factor difficulty, "
+    "strategic ranking, and solver realism—so it can disagree with solver_analysis."
+)
+
 PAIR_ORDER = [
     ("profitability", "demand"),
     ("profitability", "competition"),
@@ -158,4 +164,5 @@ def run_search_analysis(features: dict, decision_result: dict) -> dict:
         "single_factor_paths": single_factor_paths,
         "multi_factor_paths": multi_factor_paths,
         "best_path_summary": best_path_summary,
+        "semantics": SEARCH_SEMANTICS,
     }

@@ -41,6 +41,12 @@ PAIR_ORDER = [
 
 ORDERED_FACTORS = ["profitability", "demand", "competition", "reviews"]
 
+SOLVER_SEMANTICS = (
+    "Solver analysis picks a realism-ranked preferred upgrade path: it uses caps, diminishing returns, "
+    "factor difficulty, sensitivity importance, and strategic tie-breaks. It can differ from search_analysis, "
+    "which only tests raw linear feasibility vs headroom."
+)
+
 SENSITIVITY_IMPORTANCE = {
     "HIGH": 1.5,
     "MEDIUM": 1.0,
@@ -498,6 +504,7 @@ def run_solver_analysis(
             "best_single_factor_solution": None,
             "best_two_factor_solution": None,
             "minimum_change_summary": _minimum_change_summary(next_tier, gap, None, None),
+            "semantics": SOLVER_SEMANTICS,
         }
 
     best_single: dict | None = None
@@ -541,4 +548,5 @@ def run_solver_analysis(
         "best_single_factor_solution": best_single,
         "best_two_factor_solution": best_pair,
         "minimum_change_summary": summary,
+        "semantics": SOLVER_SEMANTICS,
     }

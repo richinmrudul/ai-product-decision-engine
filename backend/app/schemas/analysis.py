@@ -120,6 +120,7 @@ class SearchAnalysis(BaseModel):
     single_factor_paths: List[SingleFactorPath]
     multi_factor_paths: List[MultiFactorPath]
     best_path_summary: str
+    semantics: str
 
 
 class SolverPath(BaseModel):
@@ -141,6 +142,15 @@ class SolverAnalysis(BaseModel):
     best_single_factor_solution: SolverPath | None
     best_two_factor_solution: SolverPath | None
     minimum_change_summary: str
+    semantics: str
+
+
+class ProductPlausibility(BaseModel):
+    input_plausibility_score: float
+    extreme_value_flags: List[str]
+    plausibility_warnings: List[str]
+    suspicious_combination_flags: List[str]
+    outlier_risk_level: str
 
 
 class ProductAnalysisResponse(BaseModel):
@@ -158,3 +168,4 @@ class ProductAnalysisResponse(BaseModel):
     calibration: ProductCalibration
     search_analysis: SearchAnalysis
     solver_analysis: SolverAnalysis
+    plausibility: ProductPlausibility

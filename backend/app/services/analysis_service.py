@@ -9,6 +9,10 @@ from app.services.explanation_engine import (
 from app.services.feature_engineering import compute_features
 from app.services.calibration_layer import build_calibration_layer
 from app.services.intelligence_layer import build_intelligence_layer
+from app.services.plausibility_layer import (
+    append_plausibility_to_calibration,
+    build_plausibility_layer,
+)
 from app.services.scenario_engine import run_sensitivity_analysis
 from app.services.search_engine import run_search_analysis
 from app.services.solver_engine import run_solver_analysis
@@ -16,10 +20,13 @@ from app.services.solver_engine import run_solver_analysis
 
 def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
     features = compute_features(payload)
+    plausibility = build_plausibility_layer(payload, features)
     decision_result = build_decision_result(features)
 
     reasons = build_reasons(features)
     warnings = build_warnings(features)
+    if plausibility["plausibility_warnings"]:
+        warnings = warnings + plausibility["plausibility_warnings"][:4]
     summary = build_summary(
         decision_result["decision"],
         decision_result["risk_level"],
@@ -28,11 +35,22 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
     key_drivers = build_key_drivers(features)
     sensitivity = run_sensitivity_analysis(payload)
     intelligence = build_intelligence_layer(features, decision_result, sensitivity)
+    if plausibility["outlier_risk_level"] == "HIGH":
+        intelligence["uncertainty_flags"] = list(intelligence["uncertainty_flags"]) + [
+            "Input plausibility is low; treat scores and recommendations as non-executable until inputs are normalized.",
+        ]
+    elif plausibility["outlier_risk_level"] == "MEDIUM":
+        intelligence["uncertainty_flags"] = list(intelligence["uncertainty_flags"]) + [
+            "Some inputs look stretched; validate assumptions before relying on the headline decision.",
+        ]
+
     features_for_calibration = {**features, "review_count": payload.review_count}
     calibration = build_calibration_layer(
         features_for_calibration, decision_result, sensitivity, intelligence
     )
+    append_plausibility_to_calibration(calibration, plausibility)
     calibrated_confidence = calibration["confidence_breakdown"]["final_confidence"]
+
     search_analysis = run_search_analysis(features, decision_result)
     solver_analysis = run_solver_analysis(
         features, decision_result, sensitivity, intelligence
@@ -53,4 +71,5 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
         calibration=calibration,
         search_analysis=search_analysis,
         solver_analysis=solver_analysis,
+        plausibility=plausibility,
     )
