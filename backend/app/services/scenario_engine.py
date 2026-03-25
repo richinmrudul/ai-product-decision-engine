@@ -74,6 +74,47 @@ def _best_case(decisions: list[str]) -> str:
     return max(decisions, key=lambda d: DECISION_RANK.get(d, 0))
 
 
+def _build_robustness_summary(
+    stability: str,
+    base_decision: str,
+    most_sensitive_scenario: str,
+    largest_score_drop: float,
+    largest_score_gain: float,
+    scenarios_out: list[dict],
+) -> str:
+    scenario_lookup = {scenario["scenario_id"]: scenario for scenario in scenarios_out}
+    sensitive = scenario_lookup.get(most_sensitive_scenario)
+    sensitive_desc = sensitive["description"] if sensitive else most_sensitive_scenario
+    sensitive_delta = sensitive["score_delta"] if sensitive else 0.0
+    sensitive_changed = sensitive["decision_changed"] if sensitive else False
+    changed_count = sum(1 for scenario in scenarios_out if scenario["decision_changed"])
+
+    if stability == "ROBUST":
+        return (
+            "The recommendation appears robust across tested scenarios. "
+            f"The most sensitive assumption is {sensitive_desc.lower()} ({sensitive_delta:+.2f} points), "
+            f"with a maximum drop of {largest_score_drop:.2f} and a maximum gain of {largest_score_gain:.2f}."
+        )
+
+    if stability == "MIXED":
+        if sensitive_changed:
+            change_clause = "and changes the decision"
+        else:
+            change_clause = "without changing the decision"
+        return (
+            "The recommendation is mixed across tested scenarios. "
+            f"The most sensitive assumption is {sensitive_desc.lower()} ({sensitive_delta:+.2f} points) {change_clause}. "
+            f"Across all tests, {changed_count} scenario(s) move away from baseline '{base_decision}'."
+        )
+
+    return (
+        "The recommendation is fragile under tested scenarios. "
+        f"The most sensitive assumption is {sensitive_desc.lower()} ({sensitive_delta:+.2f} points), "
+        f"and {changed_count} scenario(s) change the baseline decision '{base_decision}'. "
+        f"Observed score range spans {largest_score_drop:.2f} to +{largest_score_gain:.2f} points."
+    )
+
+
 def run_sensitivity_analysis(base_payload: ProductAnalysisRequest) -> dict:
     """
     Baseline decision plus six deterministic stress scenarios (3 downside, 3 upside).
@@ -120,18 +161,14 @@ def run_sensitivity_analysis(base_payload: ProductAnalysisRequest) -> dict:
 
     unique_decisions = len(set(all_decisions))
     stability = _decision_stability(unique_decisions)
-    if stability == "ROBUST":
-        robustness_sentence = (
-            f"Recommendation is ROBUST: baseline decision '{base_decision}' holds across all tested scenarios."
-        )
-    elif stability == "MIXED":
-        robustness_sentence = (
-            f"Recommendation is MIXED: baseline decision '{base_decision}' changes under some scenarios."
-        )
-    else:
-        robustness_sentence = (
-            f"Recommendation is FRAGILE: tested scenarios span three or more distinct decisions from baseline '{base_decision}'."
-        )
+    robustness_sentence = _build_robustness_summary(
+        stability=stability,
+        base_decision=base_decision,
+        most_sensitive_scenario=most_sensitive_scenario,
+        largest_score_drop=round(largest_score_drop, 2),
+        largest_score_gain=round(largest_score_gain, 2),
+        scenarios_out=scenarios_out,
+    )
 
     return {
         "scenarios": scenarios_out,
