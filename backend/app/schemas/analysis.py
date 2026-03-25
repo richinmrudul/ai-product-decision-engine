@@ -21,6 +21,7 @@ class KeyDriver(BaseModel):
 class ScenarioOutcome(BaseModel):
     scenario_id: str
     description: str
+    scenario_type: str
     decision: str
     overall_score: float
     score_delta: float
