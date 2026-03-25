@@ -63,6 +63,26 @@ class ProductIntelligence(BaseModel):
     uncertainty_flags: List[str]
 
 
+class ConfidenceBreakdown(BaseModel):
+    signal_consistency: float
+    data_support: float
+    scenario_robustness: float
+    final_confidence: float
+
+
+class RiskProfile(BaseModel):
+    overall_risk_level: str
+    risk_sources: List[str]
+    hidden_fragility: bool
+
+
+class ProductCalibration(BaseModel):
+    confidence_breakdown: ConfidenceBreakdown
+    risk_profile: RiskProfile
+    calibrated_summary: str
+    decision_posture: str
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
@@ -75,3 +95,4 @@ class ProductAnalysisResponse(BaseModel):
     computed_features: Dict[str, float]
     sensitivity: SensitivityAnalysis
     intelligence: ProductIntelligence
+    calibration: ProductCalibration
