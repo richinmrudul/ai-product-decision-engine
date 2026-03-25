@@ -127,6 +127,8 @@ class SolverPath(BaseModel):
     factor_score_changes: Dict[str, float]
     total_score_change: float
     estimated_weighted_gain: float
+    effective_cost: float
+    strategic_score: float
     solution_summary: str
 
 

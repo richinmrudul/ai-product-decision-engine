@@ -34,7 +34,9 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
     )
     calibrated_confidence = calibration["confidence_breakdown"]["final_confidence"]
     search_analysis = run_search_analysis(features, decision_result)
-    solver_analysis = run_solver_analysis(features, decision_result)
+    solver_analysis = run_solver_analysis(
+        features, decision_result, sensitivity, intelligence
+    )
 
     return ProductAnalysisResponse(
         decision=decision_result["decision"],
