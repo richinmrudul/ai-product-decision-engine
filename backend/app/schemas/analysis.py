@@ -99,6 +99,29 @@ class ProductCalibration(BaseModel):
     decision_posture: str
 
 
+class SingleFactorPath(BaseModel):
+    factor: str
+    current_score: float
+    remaining_headroom: float
+    required_score_increase: float
+    reachable_within_bounds: bool
+
+
+class MultiFactorPath(BaseModel):
+    factors: List[str]
+    combined_remaining_headroom: float
+    reachable: bool
+    path_summary: str
+
+
+class SearchAnalysis(BaseModel):
+    next_tier: str
+    gap_overall_points: float | None
+    single_factor_paths: List[SingleFactorPath]
+    multi_factor_paths: List[MultiFactorPath]
+    best_path_summary: str
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
@@ -112,3 +135,4 @@ class ProductAnalysisResponse(BaseModel):
     sensitivity: SensitivityAnalysis
     intelligence: ProductIntelligence
     calibration: ProductCalibration
+    search_analysis: SearchAnalysis

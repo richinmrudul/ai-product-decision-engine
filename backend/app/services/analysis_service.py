@@ -10,6 +10,7 @@ from app.services.feature_engineering import compute_features
 from app.services.calibration_layer import build_calibration_layer
 from app.services.intelligence_layer import build_intelligence_layer
 from app.services.scenario_engine import run_sensitivity_analysis
+from app.services.search_engine import run_search_analysis
 
 
 def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
@@ -31,6 +32,7 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
         features_for_calibration, decision_result, sensitivity, intelligence
     )
     calibrated_confidence = calibration["confidence_breakdown"]["final_confidence"]
+    search_analysis = run_search_analysis(features, decision_result)
 
     return ProductAnalysisResponse(
         decision=decision_result["decision"],
@@ -45,4 +47,5 @@ def analyze_product(payload: ProductAnalysisRequest) -> ProductAnalysisResponse:
         sensitivity=sensitivity,
         intelligence=intelligence,
         calibration=calibration,
+        search_analysis=search_analysis,
     )
