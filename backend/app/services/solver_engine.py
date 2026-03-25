@@ -1,4 +1,4 @@
-"""Deterministic upgrade solver: importance-weighted effective cost and strategic ranking."""
+"""Deterministic upgrade solver: caps, diminishing returns, and realism-aware ranking."""
 
 import math
 
@@ -17,6 +17,19 @@ FACTOR_LABELS = {
     "competition": "competition",
     "reviews": "reviews",
 }
+
+MAX_FEASIBLE_IMPROVEMENT = {
+    "profitability": 35,
+    "demand": 30,
+    "competition": 40,
+    "reviews": 25,
+}
+
+# Prefer paths with lower total diminishing penalty (execution realism).
+REALISTIC_PENALTY_CEILING = 120.0
+STRETCHED_PENALTY_CEILING = 180.0
+# Discard candidates whose cumulative penalty is implausibly high (still deterministic).
+HARD_PENALTY_DISCARD = 280.0
 
 PAIR_ORDER = [
     ("profitability", "demand"),
@@ -60,6 +73,45 @@ def _next_tier_and_gap(decision: str, overall_score: float) -> tuple[str, float 
 def _headroom_int(features: dict, factor: str) -> int:
     current = features[FACTOR_SCORE_KEYS[factor]]
     return max(0, min(100, int(math.floor(100.0 - current + 1e-9))))
+
+
+def _feasible_headroom_int(features: dict, factor: str) -> int:
+    """Clamp search to remaining score headroom and per-factor realism caps."""
+    return min(_headroom_int(features, factor), MAX_FEASIBLE_IMPROVEMENT[factor])
+
+
+def _diminishing_penalty(delta: float) -> float:
+    """First 20 pts at 1x; 20–40 at 1.5x; beyond 40 at 2x."""
+    d = max(0.0, float(delta))
+    if d <= 20.0:
+        return d
+    if d <= 40.0:
+        return 20.0 + (d - 20.0) * 1.5
+    return 20.0 + 20.0 * 1.5 + (d - 40.0) * 2.0
+
+
+def _effective_cost_adjusted(
+    changes: dict[str, float], importance: dict[str, float]
+) -> tuple[float, float]:
+    """
+    effective_cost = sum( diminishing_penalty(delta_f) / importance_f ).
+    Returns (effective_cost, adjusted_penalty_sum).
+    """
+    penalty_sum = 0.0
+    cost = 0.0
+    for f, delta in changes.items():
+        p = _diminishing_penalty(delta)
+        penalty_sum += p
+        cost += p / importance[f]
+    return round(cost, 4), round(penalty_sum, 2)
+
+
+def _realism_tier(penalty_sum: float) -> int:
+    if penalty_sum <= REALISTIC_PENALTY_CEILING:
+        return 0
+    if penalty_sum <= STRETCHED_PENALTY_CEILING:
+        return 1
+    return 2
 
 
 def _importance_by_factor(intelligence: dict) -> dict[str, float]:
@@ -114,15 +166,13 @@ def _strategic_score(
     return score
 
 
-def _effective_cost(changes: dict[str, float], importance: dict[str, float]) -> float:
-    return sum(changes[f] / importance[f] for f in changes)
-
-
 def _narrative_summary(
     factors: list[str],
     changes: dict[str, float],
     next_tier: str,
     total_change: float,
+    adjusted_penalty_sum: float,
+    realism_stretched: bool,
 ) -> str:
     labels = [FACTOR_LABELS[f] for f in factors]
     if len(labels) == 1:
@@ -130,6 +180,26 @@ def _narrative_summary(
     else:
         joint = f"{labels[0]} and {labels[1]}"
     tier_label = "BUY" if next_tier == "BUY" else "WATCH"
+
+    near_max: list[str] = []
+    for f in factors:
+        d = changes[f]
+        cap = MAX_FEASIBLE_IMPROVEMENT[f]
+        if cap > 0 and d >= cap * 0.85:
+            near_max.append(FACTOR_LABELS[f])
+
+    if near_max and (realism_stretched or adjusted_penalty_sum > STRETCHED_PENALTY_CEILING):
+        joined = " and ".join(near_max)
+        return (
+            f"Even under optimistic assumptions, this path requires near-maximum improvement in {joined}, "
+            f"making it difficult to execute in practice."
+        )
+
+    if realism_stretched or adjusted_penalty_sum > REALISTIC_PENALTY_CEILING:
+        return (
+            f"Closing the gap to {tier_label} still implies heavy execution lift on {joint}: "
+            f"diminishing-returns penalties make this path costly despite strategic fit."
+        )
 
     if total_change <= 8:
         return (
@@ -140,7 +210,8 @@ def _narrative_summary(
             f"Meaningful upgrades across {joint} would be needed to reach {tier_label} with confidence."
         )
     return (
-        f"A substantial improvement in {joint} would be required to reach {tier_label}."
+        f"A substantial improvement in {joint} would be required to reach {tier_label}, "
+        f"but it remains within the modeled feasibility caps."
     )
 
 
@@ -155,15 +226,25 @@ def _make_path(
     decision_factors: set[str],
 ) -> dict:
     total = round(sum(changes.values()), 2)
-    eff = round(_effective_cost(changes, importance), 2)
+    eff, penalty_sum = _effective_cost_adjusted(changes, importance)
     strat = _strategic_score(factors, level_map, weakest, decision_factors)
-    summary = _narrative_summary(factors, changes, next_tier, total)
+    realism_stretched = penalty_sum > REALISTIC_PENALTY_CEILING
+    summary = _narrative_summary(
+        factors,
+        changes,
+        next_tier,
+        total,
+        penalty_sum,
+        realism_stretched,
+    )
     return {
         "factors": factors,
         "factor_score_changes": {k: round(v, 2) for k, v in changes.items()},
         "total_score_change": total,
         "estimated_weighted_gain": round(weighted_gain, 2),
         "effective_cost": eff,
+        "adjusted_penalty_sum": penalty_sum,
+        "realism_stretched": realism_stretched,
         "strategic_score": round(strat, 2),
         "solution_summary": summary,
     }
@@ -180,21 +261,25 @@ def _solve_single_factor(
     decision_factors: set[str],
 ) -> dict | None:
     w = WEIGHTS[factor]
-    h = _headroom_int(features, factor)
+    h = _feasible_headroom_int(features, factor)
     for d in range(0, h + 1):
         gain = w * d
-        if gain >= gap - 1e-6:
-            changes = {factor: float(d)}
-            return _make_path(
-                [factor],
-                changes,
-                gain,
-                next_tier,
-                importance,
-                level_map,
-                weakest,
-                decision_factors,
-            )
+        if gain < gap - 1e-6:
+            continue
+        changes = {factor: float(d)}
+        _, penalty_sum = _effective_cost_adjusted(changes, importance)
+        if penalty_sum > HARD_PENALTY_DISCARD:
+            continue
+        return _make_path(
+            [factor],
+            changes,
+            gain,
+            next_tier,
+            importance,
+            level_map,
+            weakest,
+            decision_factors,
+        )
     return None
 
 
@@ -210,7 +295,7 @@ def _solve_pair(
     decision_factors: set[str],
 ) -> dict | None:
     wa, wb = WEIGHTS[fa], WEIGHTS[fb]
-    ha, hb = _headroom_int(features, fa), _headroom_int(features, fb)
+    ha, hb = _feasible_headroom_int(features, fa), _feasible_headroom_int(features, fb)
     best_path: dict | None = None
     best_key: tuple | None = None
 
@@ -220,9 +305,12 @@ def _solve_pair(
             if gain < gap - 1e-6:
                 continue
             changes = {fa: float(da), fb: float(db)}
-            eff = round(_effective_cost(changes, importance), 4)
+            eff, penalty_sum = _effective_cost_adjusted(changes, importance)
+            if penalty_sum > HARD_PENALTY_DISCARD:
+                continue
+            tier = _realism_tier(penalty_sum)
             strat = _strategic_score([fa, fb], level_map, weakest, decision_factors)
-            key = (eff, -strat, da + db, da, db)
+            key = (tier, eff, -strat, da + db, da, db)
             if best_key is None or key < best_key:
                 best_key = key
                 best_path = _make_path(
@@ -244,13 +332,17 @@ def _better_solution(a: dict | None, b: dict | None) -> dict | None:
         return b
     if b is None:
         return a
+    tier_a = _realism_tier(a["adjusted_penalty_sum"])
+    tier_b = _realism_tier(b["adjusted_penalty_sum"])
     key_a = (
+        tier_a,
         a["effective_cost"],
         -a["strategic_score"],
         a["total_score_change"],
         tuple(a["factors"]),
     )
     key_b = (
+        tier_b,
         b["effective_cost"],
         -b["strategic_score"],
         b["total_score_change"],
@@ -272,12 +364,18 @@ def _minimum_change_summary(
         return "Baseline already meets the next tier threshold; no factor changes are required."
 
     if best_single is None and best_pair is None:
-        return "No single-factor or two-factor solution exists within remaining headroom at 1-point steps."
+        return (
+            "No feasible upgrade path exists within per-factor caps and diminishing-return limits "
+            "at 1-point steps (or all candidates exceeded hard penalty bounds)."
+        )
 
     global_best = _better_solution(best_single, best_pair)
     assert global_best is not None
 
     substantial = (gap > 12) or (global_best["total_score_change"] > 18)
+    penalty_note = ""
+    if global_best.get("realism_stretched"):
+        penalty_note = " Execution remains heavy once diminishing returns are applied."
     difficulty = (
         " The upgrade still demands substantial movement, so execution risk stays elevated."
         if substantial
@@ -290,22 +388,23 @@ def _minimum_change_summary(
 
     if prefer_single and best_single is not None:
         return (
-            f"The strategically preferred path is a single-factor lift on {FACTOR_LABELS[best_single['factors'][0]]} "
-            f"(effective cost {best_single['effective_cost']:.2f} vs raw change {best_single['total_score_change']:.0f}): "
-            f"{best_single['solution_summary']}{difficulty}"
+            f"The most realistic preferred path is a single-factor lift on {FACTOR_LABELS[best_single['factors'][0]]} "
+            f"(adjusted effective cost {best_single['effective_cost']:.2f}, penalty sum {best_single['adjusted_penalty_sum']:.2f}): "
+            f"{best_single['solution_summary']}{penalty_note}{difficulty}"
         )
 
     assert best_pair is not None
     prefix = (
-        "No single-factor path wins on effective cost and strategic fit within headroom; "
+        "No single-factor path wins under realism ranking within caps; "
         if best_single is None
         else ""
     )
     return (
         f"{prefix}"
-        f"The strategically preferred path pairs {FACTOR_LABELS[best_pair['factors'][0]]} and "
-        f"{FACTOR_LABELS[best_pair['factors'][1]]} (effective cost {best_pair['effective_cost']:.2f}): "
-        f"{best_pair['solution_summary']}{difficulty}"
+        f"The most realistic preferred path pairs {FACTOR_LABELS[best_pair['factors'][0]]} and "
+        f"{FACTOR_LABELS[best_pair['factors'][1]]} (adjusted effective cost {best_pair['effective_cost']:.2f}, "
+        f"penalty sum {best_pair['adjusted_penalty_sum']:.2f}): "
+        f"{best_pair['solution_summary']}{penalty_note}{difficulty}"
     )
 
 
