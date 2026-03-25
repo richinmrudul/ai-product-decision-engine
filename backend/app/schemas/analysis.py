@@ -122,6 +122,22 @@ class SearchAnalysis(BaseModel):
     best_path_summary: str
 
 
+class SolverPath(BaseModel):
+    factors: List[str]
+    factor_score_changes: Dict[str, float]
+    total_score_change: float
+    estimated_weighted_gain: float
+    solution_summary: str
+
+
+class SolverAnalysis(BaseModel):
+    next_tier: str
+    gap_overall_points: float | None
+    best_single_factor_solution: SolverPath | None
+    best_two_factor_solution: SolverPath | None
+    minimum_change_summary: str
+
+
 class ProductAnalysisResponse(BaseModel):
     decision: str
     confidence_score: float
@@ -136,3 +152,4 @@ class ProductAnalysisResponse(BaseModel):
     intelligence: ProductIntelligence
     calibration: ProductCalibration
     search_analysis: SearchAnalysis
+    solver_analysis: SolverAnalysis
